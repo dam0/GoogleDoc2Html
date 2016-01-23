@@ -12,25 +12,37 @@ function ConvertGoogleDocToCleanHtml() {
   }
 
   var html = output.join('\r');
-  emailHtml(html, images);
+  
+  var zip = createZip(html, images);
+  
+  emailHtml(html, images, zip);
   //createDocumentForHtml(html, images);
 }
 
-function emailHtml(html, images) {
+function emailHtml(html, images, zip) {
+  var name = DocumentApp.getActiveDocument().getName();
+  
   var attachments = [];
   for (var j=0; j<images.length; j++) {
     attachments.push( {
-      "fileName": images[j].name,
+      "fileName": images[j].name + ".html",
       "mimeType": images[j].type,
-      "content": images[j].blob.getBytes() } );
+      "content": images[j].blob.getBytes() 
+    });
   }
 
+  attachments.push({
+      "fileName": name + ".zip",
+      "mimeType": "application/zip",
+      "content": zip.getBytes()
+  });
+  
   var inlineImages = {};
   for (var j=0; j<images.length; j++) {
     inlineImages[[images[j].name]] = images[j].blob;
   }
 
-  var name = DocumentApp.getActiveDocument().getName()+".html";
+  
   attachments.push({"fileName":name, "mimeType": "text/html", "content": html});
   MailApp.sendEmail({
      to: Session.getActiveUser().getEmail(),
@@ -39,6 +51,26 @@ function emailHtml(html, images) {
      inlineImages: inlineImages,
      attachments: attachments
    });
+}
+
+function createZip (html, images) { 
+  var name = DocumentApp.getActiveDocument().getName();  
+  var dataList = [];
+  
+  for (var j=0; j<images.length; j++) {
+    dataList.push(images[j].blob);
+  }
+  
+  //var encoded = Utilities.base64Encode(html);
+  //var byteDataArray = Utilities.base64Decode(encoded);
+  //var blob = Utilities.newBlob(byteDataArray);
+  
+  var blob = Utilities.newBlob(html, "TEXT", name + ".html");
+  
+  dataList.push(blob);
+  
+  var zip = Utilities.zip(dataList, name +".zip"); 
+  return zip;
 }
 
 function createDocumentForHtml(html, images) {
