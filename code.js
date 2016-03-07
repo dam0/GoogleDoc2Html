@@ -1,3 +1,12 @@
+function onOpen(e) {
+  DocumentApp.getUi().createAddonMenu()
+      .addItem('Start', 'ConvertGoogleDocToCleanHtml')
+      .addToUi();
+}
+function onInstall(e) {
+  onOpen(e);
+}
+
 function ConvertGoogleDocToCleanHtml() {
   var body = DocumentApp.getActiveDocument().getBody();
   var numChildren = body.getNumChildren();
