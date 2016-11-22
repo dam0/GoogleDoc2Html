@@ -1,6 +1,4 @@
-//TODO: add  <html><meta charset="utf-8">  .... </html>
-//TODO: add BackgroundColor
-
+//TODO: page breaks - .pagebreak { page-break-before: always; }
 /*
 
 type: 
@@ -33,20 +31,26 @@ function onOpen() {
         .addItem('Create CleanHtml Document', 'CreateCleanHtmlDocument')
         .addItem('Create CleanHtml Document With Inline Images as Zip', 'CreateHtmlZipFileCleanHtmlAndInlineImages')
         .addItem('Create CleanHtml Document as Zip', 'CreateHtmlZipFile')
-        //.addItem('Append CleanHtml with Inline Images on Document !Warning!', 'AppendCleanHtmlOnDocumentWithInlineImages')
         .addItem('Append CleanHtml on Document', 'AppendCleanHtmlOnDocument')
         .addToUi();
+}
+
+function sendLog() {
+    var body = Logger.getLog();
+    DriveApp.createFile("cleanlog.txt", body);
 }
 
 function EmailCleanHtmlAndAttachments() {
     var data = ConvertGoogleDocToCleanHtml();
     var zip = createZip(data.html, data.images);
     emailHtml(data.html, data.images, true, zip);
+	sendLog();
 }
 
 function EmailCleanHtml() {
     var data = ConvertGoogleDocToCleanHtml();
     emailHtml(data.html, data.images, false);
+    sendLog();
 }
 
 function EmailCleanHtmlAndInlineImages() {
@@ -54,11 +58,14 @@ function EmailCleanHtmlAndInlineImages() {
         inlineImages: true
     });
     emailHtml(data.html, data.images, false);
+	sendLog();
 }
 
 function CreateCleanHtmlDocument() {
     var data = ConvertGoogleDocToCleanHtml();
+	
     createDocumentForHtml(data.html, data.images);
+	sendLog();
 }
 
 function CreateHtmlZipFileCleanHtmlAndInlineImages() {
@@ -67,6 +74,7 @@ function CreateHtmlZipFileCleanHtmlAndInlineImages() {
     });
     var zip = createZip(data.html, data.images);
     saveZipFile(zip);
+	sendLog();
 }
 
 function CreateHtmlZipFile() {
@@ -75,19 +83,14 @@ function CreateHtmlZipFile() {
     });
     var zip = createZip(data.html, data.images);
     saveZipFile(zip);
+	sendLog();
 }
 
-//inlineImages are produce much text, gdoc can not handle this!!!
-/*function AppendCleanHtmlOnDocumentWithInlineImages() {
-  var data = ConvertGoogleDocToCleanHtml({ inlineImages: true }); 
-  var body = DocumentApp.getActiveDocument().getBody();
-  body.appendParagraph(data.html);
-}*/
-
 function AppendCleanHtmlOnDocument() {
-    var data = ConvertGoogleDocToCleanHtml();
+    var data = ConvertGoogleDocToCleanHtml(null, true);
     var body = DocumentApp.getActiveDocument().getBody();
     body.appendParagraph(data.html);
+	sendLog();
 }
 
 
@@ -96,7 +99,7 @@ function AppendCleanHtmlOnDocument() {
  * @param {boolean} inlineImages
  * @returns {{ html: string, images: {"blob": Blob,"type": string,"name": string, "height": number, "width": number}[]}}
  */
-function ConvertGoogleDocToCleanHtml(imagesOptions) {
+function ConvertGoogleDocToCleanHtml(imagesOptions, disableFullBody) {
     var body = DocumentApp.getActiveDocument().getBody();
     var numChildren = body.getNumChildren();
     var output = [];
@@ -117,6 +120,10 @@ function ConvertGoogleDocToCleanHtml(imagesOptions) {
         output.push(processItem(child, listCounters, images, imagesOptions));
     }
 
+	if (!disableFullBody) {
+		output.unshift("<html><head><meta charset='utf-8'><title>" + DocumentApp.getActiveDocument().getName() + "</title></head><body>");
+		output.push("</body></html>");
+	}
     var html = output.join('\r');
 
     return {
@@ -248,7 +255,7 @@ function dumpAttributesOfItem(item) {
 function dumpAttributes(atts) {
     // Log the paragraph attributes.
     for (var att in atts) {
-        Logger.log(att + ":" + atts[att]);
+		if (atts[att]) Logger.log(att + ":" + atts[att]);
     }
 }
 
@@ -271,7 +278,7 @@ function processItem(item, listCounters, images, imagesOptions) {
     }
 
     var itemType = item.getType();
-
+    
     if (itemType === DocumentApp.ElementType.PARAGRAPH) {
         //https://developers.google.com/apps-script/reference/document/paragraph
 
@@ -279,8 +286,22 @@ function processItem(item, listCounters, images, imagesOptions) {
             return "<br />";
         }
 
-        //Text Alignment
-        var p = "margin:0; ";
+		var p = "";
+        
+		if (item.getIndentStart() != null) {
+			p += "margin-left:" + item.getIndentStart() + "; ";
+		} else {
+		     // p += "margin-left: 0; "; // superfluous
+		}
+		
+		// what does getIndentEnd actually do? the value is the same as in getIndentStart
+		/*if (item.getIndentEnd() != null) {
+			p += "margin-right:" + item.getIndentStart() + "; ";
+		} else {
+		     // p += "margin-right: 0; "; // superfluous
+		}*/
+		
+		//Text Alignment
         switch (item.getAlignment()) {
             // Add a # for each heading level. No break, so we accumulate the right number.
             //case DocumentApp.HorizontalAlignment.LEFT:
@@ -423,12 +444,6 @@ function processItem(item, listCounters, images, imagesOptions) {
 
         //TODO: WIDTH must be reculculatet in percent
         var atts = item.getAttributes();
-        //Logger.log("TABLE_CELL atts.WIDTH: " + atts.WIDTH);
-        //dumpAttributes(atts);
-
-        //text-align: left;
-        //vertical-align: bottom;
-        //height: 50px;
 
         var style = ' style=" width:' + atts.WIDTH + 'px; border: 1px solid black; padding: 5px;"';
 
@@ -500,85 +515,19 @@ function processText(item, output) {
     var indices = item.getTextAttributeIndices();
 
     if (text === '\r') {
-        //Logger.log("\\r: " + JSON.stringify(text));
+        Logger.log("\\r: ");
         return;
     }
-
-    /*if (indices.length <= 0) {
-      
-      var style = "";
-      var f = item.getFontFamily();
-      if (isUsable(f)) {
-        style = style + 'font-family: ' + f + '; ';
-      }
-      var pt = item.getFontSize();
-      if (isUsable(pt)) {
-        var em = pixelToEm(pointsToPixel(pt));
-        style = style + 'font-size: ' + pt + 'pt; font-size: ' + em + 'em; ';
-      }
-      var c = item.getForegroundColor();
-      if (isUsable(c)) {
-        style = style + 'color: ' + c + '; ';
-      }
-      c = item.getBackgroundColor();
-      if (isUsable(c)) {
-        style = style + 'background-color: ' + c + '; ';
-      }
-      if (item.isStrikethrough()) {
-        style = style + 'text-decoration: line-through; ';
-      }
-      var a = item.getTextAlignment();
-      if (a !== DocumentApp.TextAlignment.NORMAL && a !== null) {
-        if (a === DocumentApp.TextAlignment.SUBSCRIPT) {
-          style = style + 'vertical-align : sub; font-size : 60%; ';
-        } else if (a === DocumentApp.TextAlignment.SUPERSCRIPT) {
-          style = style + 'vertical-align : super; font-size : 60%; ';
-        }
-      }
-      
-      //TODO: change html tags to css (i, string, u)
-      
-      if(item.isBold()) {
-        if (style !== "") {
-          text = '<span style="' + style + '">' + text + '</span>';
-        }
-        output.push('<strong>' + text + '</strong>');
-      } 
-      else if(item.isItalic()) {
-        if (style !== "") {
-          text = '<span style="' + style + '">' + text + '</span>';
-        }
-        output.push('<i>' + text + '</i>'); //blockquote
-      } 
-      else if(item.isUnderline()) {
-        if (style !== "") {
-          text = '<span style="' + style + '">' + text + '</span>';
-        }
-        output.push('<u>' + text + '</u>');
-      }  
-      else if (text.trim().indexOf('http://') == 0 || text.trim().indexOf('https://') == 0) {
-        if (style !== "") {
-          style = ' style="' + style + '"';
-        }
-        output.push('<a' + style + ' href="' + text + '" rel="nofollow">' + text + '</a>');
-      }
-      else {
-        if (style !== "") {
-          text = '<span style="' + style + '">' + text + '</span>';
-        }
-        output.push(text);
-      }
-    }
-    else {*/
 
     for (var i = 0; i < indices.length; i++) {
         var partAtts = item.getAttributes(indices[i]);
         var startPos = indices[i];
         var endPos = i + 1 < indices.length ? indices[i + 1] : text.length;
         var partText = text.substring(startPos, endPos);
-
+		
+		partText = partText.replace(new RegExp("(\r)", 'g'), "<br />\r");
         //Logger.log(partText);
-        //dumpAttributes(partAtts);
+        dumpAttributes(partAtts);
 
         //TODO if only ITALIC use: <blockquote></blockquote>
 
@@ -598,7 +547,9 @@ function processText(item, output) {
         }
 
         var style = "";
-        if (partAtts.FONT_FAMILY) {
+        
+		// font family, color and size changes disabled
+		/*if (partAtts.FONT_FAMILY) {
             style = style + 'font-family: ' + partAtts.FONT_FAMILY + '; ';
         }
         if (partAtts.FONT_SIZE) {
@@ -611,7 +562,7 @@ function processText(item, output) {
         }
         if (partAtts.BACKGROUND_COLOR) {
             style = style + 'background-color: ' + partAtts.BACKGROUND_COLOR + '; ';
-        }
+        }*/
         if (partAtts.STRIKETHROUGH) {
             style = style + 'text-decoration: line-through; ';
         }
