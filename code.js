@@ -461,13 +461,13 @@ function processItem(item, listCounters, images, imagesOptions, footnotes) {
 		var note = item.getFootnoteContents();
 		var counter = footnotes.length + 1;
 		output.push("<sup><a name='link" + counter + "' href='#footnote" + counter + "'>[" + counter + "]</a></sup>");
-		var newFootnote = "<a name='footnote" + counter + "'>[" + counter + "]</a> ";
+		var newFootnote = "<aside class='footnote' epub:type='footnote' id='footnote" + counter + "'><a name='footnote" + counter + "' epub:type='noteref'>[" + counter + "]</a>";
 		var numChildren = note.getNumChildren();
 		for (var i = 0; i < numChildren; i++) {
 			var child = note.getChild(i);
 			newFootnote += processItem(child, listCounters, images, imagesOptions, footnotes);
 		}
-		newFootnote += "<a href='#link" + counter + "'>↩</a>"
+		newFootnote += "<a href='#link" + counter + "' id='#link" + counter + "'>↩</a></aside>"
 		footnotes.push(newFootnote);
 		Logger.log("FOOTNOTE: " + JSON.stringify(item));
 	} else if (itemType === DocumentApp.ElementType.HORIZONTAL_RULE) {
