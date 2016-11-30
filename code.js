@@ -104,6 +104,7 @@ function ConvertGoogleDocToCleanHtml(imagesOptions, disableFullBody) {
 	var numChildren = body.getNumChildren();
 	var output = [];
 	var images = [];
+	var footnotes = [];
 	var listCounters = {};
 
 	//TODO: Body:
@@ -117,9 +118,11 @@ function ConvertGoogleDocToCleanHtml(imagesOptions, disableFullBody) {
 	// Walk through all the child elements of the body.
 	for (var i = 0; i < numChildren; i++) {
 		var child = body.getChild(i);
-		output.push(processItem(child, listCounters, images, imagesOptions));
+		output.push(processItem(child, listCounters, images, imagesOptions, footnotes));
 	}
 
+	output.push(footnotes.join("<br /><br />\r"));
+	
 	if (!disableFullBody) {
 		output.unshift("<html><head><meta charset='utf-8'><title>" + DocumentApp.getActiveDocument().getName() + "</title></head><body>");
 		output.push("</body></html>");
@@ -265,7 +268,7 @@ function dumpAttributes(atts) {
  * @param {{"blob": Blob,"type": string,"name": string, "height": number, "width": number}[]} images
  * @returns {string}
  */
-function processItem(item, listCounters, images, imagesOptions) {
+function processItem(item, listCounters, images, imagesOptions, footnotes) {
 	var output = [];
 	var prefix = "",
 		suffix = "";
@@ -446,7 +449,7 @@ function processItem(item, listCounters, images, imagesOptions) {
 		Logger.log("TABLE_CELL getRowSpan: " + rowSpan);
 		// rowspan ="3"
 
-		//TODO: WIDTH must be reculculatet in percent
+		//TODO: WIDTH must be recalculated in percent
 		var atts = item.getAttributes();
 
 		var style = ' style=" width:' + atts.WIDTH + 'px; border: 1px solid black; padding: 5px;"';
@@ -455,6 +458,17 @@ function processItem(item, listCounters, images, imagesOptions) {
 		//Logger.log("TABLE_CELL: " + JSON.stringify(item));
 	} else if (itemType === DocumentApp.ElementType.FOOTNOTE) {
 		//TODO
+		var note = item.getFootnoteContents();
+		var counter = footnotes.length + 1;
+		output.push("<sup><a name='link" + counter + "' href='#footnote" + counter + "'>[" + counter + "]</a></sup>");
+		var newFootnote = "<a name='footnote" + counter + "'>[" + counter + "]</a> ";
+		var numChildren = note.getNumChildren();
+		for (var i = 0; i < numChildren; i++) {
+			var child = note.getChild(i);
+			newFootnote += processItem(child, listCounters, images, imagesOptions, footnotes);
+		}
+		newFootnote += "<a href='#link" + counter + "'>↩</a>"
+		footnotes.push(newFootnote);
 		Logger.log("FOOTNOTE: " + JSON.stringify(item));
 	} else if (itemType === DocumentApp.ElementType.HORIZONTAL_RULE) {
 		output.push("<hr />");
@@ -479,7 +493,7 @@ function processItem(item, listCounters, images, imagesOptions) {
 			// Walk through all the child elements of the doc.
 			for (var i = 0; i < numChildren; i++) {
 				var child = item.getChild(i);
-				output.push(processItem(child, listCounters, images, imagesOptions));
+				output.push(processItem(child, listCounters, images, imagesOptions, footnotes));
 			}
 		}
 
